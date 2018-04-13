@@ -178,7 +178,10 @@ type (
 	}
 
 	Reviewer struct {
-		User User `json:"user"`
+		User     User   `json:"user"`
+		Role     string `json:"role"`
+		Approved bool   `json:"approved"`
+		Status   string `json:"status"`
 	}
 
 	PullRequestProject struct {
