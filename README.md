@@ -70,6 +70,19 @@ branchRestrictions, err := stashClient.GetBranchRestrictions("PROJ", "slug")
 ```go
 err := stashClient.DeleteBranchRestriction("PROJ", "slug", branchRestriction.Id)
 ```
+### ApprovePullRequest
+
+```go
+err := stashClient.ApprovePullRequest("PROJ", "slug", pullRequest.Id, 0)
+```
+
+### MergePullRequest
+
+```go
+err := stashClient.MergePullRequest("PROJ", "slug", pullRequest.Id, 0)
+```
+
+
 
 ### GetPullRequests
 

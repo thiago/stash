@@ -225,7 +225,7 @@ const updatePullRequestResponse string = `
 
 func TestUpdatePullRequest(t *testing.T) {
 
-	expectedRequestBody := `{"version":100,"title":"a title","description":"a description","toRef":{"id":"develop","repository":{"slug":"bar","project":{"key":"proj"}}},"reviewers":[{"user":{"name":"bob"}},{"user":{"name":"bill"}}]}`
+	expectedRequestBody := `{"version":100,"title":"a title","description":"a description","toRef":{"id":"develop","repository":{"slug":"bar","project":{"key":"proj"}}},"reviewers":[{"user":{"name":"bob"},"role":"","approved":false,"status":""},{"user":{"name":"bill"},"role":"","approved":false,"status":""}]}`
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "PUT" {

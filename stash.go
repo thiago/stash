@@ -23,6 +23,7 @@ var Log *log.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
 
 type (
 	Stash interface {
+		ApprovePullRequest(projectKey, repositorySlug string, pullRequestID, pullRequestVersion int) error
 		CreateBranchRestriction(projectKey, repositorySlug, branch, user string) (BranchRestriction, error)
 		CreateComment(projectKey, repositorySlug, pullRequest, text string) (Comment, error)
 		CreatePullRequest(projectKey, repositorySlug, title, description, fromRef, toRef string, reviewers []string) (PullRequest, error)
@@ -40,6 +41,7 @@ type (
 		GetRepositories() (map[int]Repository, error)
 		GetRepository(projectKey, repositorySlug string) (Repository, error)
 		GetTags(projectKey, repositorySlug string) (map[string]Tag, error)
+		MergePullRequest(projectKey, repositorySlug string, pullRequestID, pullRequestVersion int) error
 		UpdatePullRequest(projectKey, repositorySlug, identifier string, version int, title, description, toRef string, reviewers []string) (PullRequest, error)
 	}
 
@@ -719,6 +721,92 @@ func (client Client) GetPullRequest(projectKey, projectSlug, identifier string) 
 	}
 
 	return r, nil
+}
+
+// ApprovePullRequest approves a pull request
+func (client Client) ApprovePullRequest(projectKey, repositorySlug string, pullRequestID, version int) error {
+	retry := retry.New(3, retry.DefaultBackoffFunc)
+	work := func() error {
+		req, err := http.NewRequest(
+			"POST",
+			fmt.Sprintf("%s/rest/api/1.0/projects/%s/repos/%s/pull-requests/%d/approve?version=%d", client.baseURL.String(), projectKey, repositorySlug, pullRequestID, version),
+			nil,
+		)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Accept", "application/json")
+
+		// https://confluence.atlassian.com/cloudkb/xsrf-check-failed-when-calling-cloud-apis-826874382.html
+		req.Header.Set("X-Atlassian-Token", "no-check")
+
+		req.SetBasicAuth(client.userName, client.password)
+
+		responseCode, _, err := consumeResponse(req)
+		if err != nil {
+			return err
+		}
+
+		if responseCode != http.StatusCreated {
+			reason := "unhandled reason"
+			switch {
+			case responseCode == http.StatusUnauthorized:
+				reason = "Unauthorized"
+			case responseCode == http.StatusNotFound:
+				reason = "Not found"
+			case responseCode == http.StatusConflict:
+				reason = "Conflict"
+			}
+			return errorResponse{StatusCode: responseCode, Reason: reason}
+		}
+
+		return nil
+	}
+
+	return retry.Try(work)
+}
+
+// MergePullRequest merges a pull request
+func (client Client) MergePullRequest(projectKey, repositorySlug string, pullRequestID, version int) error {
+	retry := retry.New(3, retry.DefaultBackoffFunc)
+	work := func() error {
+		req, err := http.NewRequest(
+			"POST",
+			fmt.Sprintf("%s/rest/api/1.0/projects/%s/repos/%s/pull-requests/%d/merge?version=%d", client.baseURL.String(), projectKey, repositorySlug, pullRequestID, version),
+			nil,
+		)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Accept", "application/json")
+
+		// https://confluence.atlassian.com/cloudkb/xsrf-check-failed-when-calling-cloud-apis-826874382.html
+		req.Header.Set("X-Atlassian-Token", "no-check")
+
+		req.SetBasicAuth(client.userName, client.password)
+
+		responseCode, _, err := consumeResponse(req)
+		if err != nil {
+			return err
+		}
+
+		if responseCode != http.StatusOK {
+			reason := "unhandled reason"
+			switch {
+			case responseCode == http.StatusUnauthorized:
+				reason = "Unauthorized"
+			case responseCode == http.StatusNotFound:
+				reason = "Not found"
+			case responseCode == http.StatusConflict:
+				reason = "Conflict"
+			}
+			return errorResponse{StatusCode: responseCode, Reason: reason}
+		}
+
+		return nil
+	}
+
+	return retry.Try(work)
 }
 
 // CreateComment creates a comment for a pull-request.

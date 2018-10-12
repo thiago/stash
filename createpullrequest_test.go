@@ -230,7 +230,7 @@ type PullRequestTemplate struct {
 
 func TestCreatePullRequest(t *testing.T) {
 
-	expectedRequestBody := `{"title":"a title","description":"a description","fromRef":{"id":"feature/file1","repository":{"slug":"bar","project":{"key":"proj"}}},"toRef":{"id":"develop","repository":{"slug":"bar","project":{"key":"proj"}}},"reviewers":[{"user":{"name":"bob"}},{"user":{"name":"bill"}}]}`
+	expectedRequestBody := `{"title":"a title","description":"a description","fromRef":{"id":"feature/file1","repository":{"slug":"bar","project":{"key":"proj"}}},"toRef":{"id":"develop","repository":{"slug":"bar","project":{"key":"proj"}}},"reviewers":[{"user":{"name":"bob"},"role":"","approved":false,"status":""},{"user":{"name":"bill"},"role":"","approved":false,"status":""}]}`
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
