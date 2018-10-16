@@ -158,6 +158,19 @@ const createPullRequestResponse string = `
         "role": "AUTHOR",
         "approved": false
     },
+	"author": {
+        "user": {
+            "name": "alice",
+            "emailAddress": "alice@example.com",
+            "id": 92903040,
+            "displayName": "Alice",
+            "active": true,
+            "slug": "alice",
+            "type": "NORMAL"
+        },
+        "role": "PARTICIPANT",
+        "approved": false
+    },
     "reviewers": [
         {
             "user": {
@@ -204,7 +217,7 @@ const createPullRequestResponse string = `
                     ]
                 }
             },
-            "role": "REVIEWER",
+            "role": "AUTHOR",
             "approved": false
         }
     ],
