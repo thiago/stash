@@ -149,6 +149,7 @@ type (
 		CreatedDate int64      `json:"createdDate"`
 		UpdatedDate int64      `json:"updatedDate"`
 		Reviewers   []Reviewer `json:"reviewers"`
+		Author      Author     `json:"author"`
 	}
 
 	Comment struct {
@@ -177,6 +178,13 @@ type (
 
 	User struct {
 		Name string `json:"name"`
+	}
+
+	Author struct {
+		User     User   `json:"user"`
+		Role     string `json:"role"`
+		Approved bool   `json:"approved"`
+		Status   string `json:"status"`
 	}
 
 	Reviewer struct {
