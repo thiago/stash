@@ -28,6 +28,21 @@ import "github.com/xoom/stash"
 ```go
 stashClient := stash.NewClient("stash_user", "stash_pwd", "http://stash-url.local:7990")
 ```
+### Inject http client
+
+```go
+httpTransport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+httpClient := &http.Client{Timeout: 20 * time.Second, Transport: httpTransport}
+
+stashClient := stash.NewClient("stash_user", "stash_pwd", "http://stash-url.local:7990")
+
+stashClient.SetHTTPClient(httpClient)
+
+
+```
 
 ### CreateRepository
 
