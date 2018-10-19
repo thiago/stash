@@ -42,13 +42,15 @@ type (
 		GetRepository(projectKey, repositorySlug string) (Repository, error)
 		GetTags(projectKey, repositorySlug string) (map[string]Tag, error)
 		MergePullRequest(projectKey, repositorySlug string, pullRequestID, pullRequestVersion int) error
+		SetHTTPClient(httpClient *http.Client)
 		UpdatePullRequest(projectKey, repositorySlug, identifier string, version int, title, description, toRef string, reviewers []string) (PullRequest, error)
 	}
 
 	Client struct {
-		userName string
-		password string
-		baseURL  *url.URL
+		userName   string
+		password   string
+		baseURL    *url.URL
+		httpClient *http.Client
 		Stash
 	}
 
@@ -247,22 +249,25 @@ const (
 	stashPageLimit int = 25
 )
 
-var (
-	httpTransport = &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-)
-
-var (
-	httpClient *http.Client = &http.Client{Timeout: 30 * time.Second, Transport: httpTransport}
-)
-
 func (e errorResponse) Error() string {
 	return fmt.Sprintf("%s (%d)", e.Reason, e.StatusCode)
 }
 
+// NewClient will generate and return a StashClient abstraction
 func NewClient(userName, password string, baseURL *url.URL) Stash {
-	return Client{userName: userName, password: password, baseURL: baseURL}
+
+	httpTransport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: httpTransport}
+
+	return &Client{userName: userName, password: password, baseURL: baseURL, httpClient: httpClient}
+}
+
+// SetHTTPClient will change default http client from stash client
+func (client *Client) SetHTTPClient(httpClient *http.Client) {
+	client.httpClient = httpClient
 }
 
 func (client Client) CreateRepository(projectKey, projectSlug string) (Repository, error) {
@@ -276,12 +281,12 @@ func (client Client) CreateRepository(projectKey, projectSlug string) (Repositor
 	req.Header.Set("Content-type", "application/json")
 	req.SetBasicAuth(client.userName, client.password)
 
-	responseCode, data, err := consumeResponse(req)
+	responseCode, data, err := client.consumeResponse(req)
 	if err != nil {
 		return Repository{}, err
 	}
 	if responseCode != http.StatusCreated {
-		var reason string = "unknown reason"
+		reason := "unknown reason"
 		switch {
 		case responseCode == http.StatusBadRequest:
 			reason = "The repository was not created due to a validation error."
@@ -324,12 +329,12 @@ func (client Client) GetRepositories() (map[int]Repository, error) {
 			}
 
 			var responseCode int
-			responseCode, data, err = consumeResponse(req)
+			responseCode, data, err = client.consumeResponse(req)
 			if err != nil {
 				return err
 			}
 			if responseCode != http.StatusOK {
-				var reason string = "unhandled reason"
+				reason := "unhandled reason"
 				switch {
 				case responseCode == http.StatusBadRequest:
 					reason = "Bad request."
@@ -373,13 +378,13 @@ func (client Client) GetBranches(projectKey, repositorySlug string) (map[string]
 			req.SetBasicAuth(client.userName, client.password)
 
 			var responseCode int
-			responseCode, data, err = consumeResponse(req)
+			responseCode, data, err = client.consumeResponse(req)
 			if err != nil {
 				return err
 			}
 
 			if responseCode != http.StatusOK {
-				var reason string = "unhandled reason"
+				reason := "unhandled reason"
 				switch {
 				case responseCode == http.StatusNotFound:
 					reason = "Not found"
@@ -428,13 +433,13 @@ func (client Client) GetTags(projectKey, repositorySlug string) (map[string]Tag,
 			}
 
 			var responseCode int
-			responseCode, data, err = consumeResponse(req)
+			responseCode, data, err = client.consumeResponse(req)
 			if err != nil {
 				return err
 			}
 
 			if responseCode != http.StatusOK {
-				var reason string = "unhandled reason"
+				reason := "unhandled reason"
 				switch {
 				case responseCode == http.StatusNotFound:
 					reason = "Not found"
@@ -478,13 +483,13 @@ func (client Client) GetRepository(projectKey, repositorySlug string) (Repositor
 			req.SetBasicAuth(client.userName, client.password)
 		}
 
-		responseCode, data, err := consumeResponse(req)
+		responseCode, data, err := client.consumeResponse(req)
 		if err != nil {
 			return err
 		}
 
 		if responseCode != http.StatusOK {
-			var reason string = "unhandled reason"
+			reason := "unhandled reason"
 			switch {
 			case responseCode == http.StatusNotFound:
 				reason = "Not found"
@@ -527,12 +532,12 @@ func (client Client) CreateBranchRestriction(projectKey, repositorySlug, branch,
 	req.Header.Set("Content-type", "application/json")
 	req.SetBasicAuth(client.userName, client.password)
 
-	responseCode, data, err := consumeResponse(req)
+	responseCode, data, err := client.consumeResponse(req)
 	if err != nil {
 		return BranchRestriction{}, err
 	}
 	if responseCode != http.StatusOK {
-		var reason string = "unknown reason"
+		reason := "unknown reason"
 		switch {
 		case responseCode == http.StatusBadRequest:
 			reason = "The branch restriction was not created due to a validation error."
@@ -555,6 +560,7 @@ func (client Client) CreateBranchRestriction(projectKey, repositorySlug, branch,
 	return t, nil
 }
 
+// GetBranchRestrictions get branchs restrictions
 func (client Client) GetBranchRestrictions(projectKey, repositorySlug string) (BranchRestrictions, error) {
 	retry := retry.New(3, retry.DefaultBackoffFunc)
 
@@ -567,13 +573,13 @@ func (client Client) GetBranchRestrictions(projectKey, repositorySlug string) (B
 		req.Header.Set("Accept", "application/json")
 		req.SetBasicAuth(client.userName, client.password)
 
-		responseCode, data, err := consumeResponse(req)
+		responseCode, data, err := client.consumeResponse(req)
 		if err != nil {
 			return err
 		}
 
 		if responseCode != http.StatusOK {
-			var reason string = "unhandled reason"
+			reason := "unhandled reason"
 			switch {
 			case responseCode == http.StatusNotFound:
 				reason = "Not found"
@@ -605,13 +611,13 @@ func (client Client) DeleteBranchRestriction(projectKey, repositorySlug string, 
 		req.Header.Set("Accept", "application/json")
 		req.SetBasicAuth(client.userName, client.password)
 
-		responseCode, _, err := consumeResponse(req)
+		responseCode, _, err := client.consumeResponse(req)
 		if err != nil {
 			return err
 		}
 
 		if responseCode != http.StatusNoContent {
-			var reason string = "unhandled reason"
+			reason := "unhandled reason"
 			switch {
 			case responseCode == http.StatusNotFound:
 				reason = "Not found"
@@ -644,12 +650,12 @@ func (client Client) GetPullRequests(projectKey, projectSlug, state string) ([]P
 			req.SetBasicAuth(client.userName, client.password)
 
 			var responseCode int
-			responseCode, data, err = consumeResponse(req)
+			responseCode, data, err = client.consumeResponse(req)
 			if err != nil {
 				return err
 			}
 			if responseCode != http.StatusOK {
-				var reason string = "unhandled reason"
+				reason := "unhandled reason"
 				switch {
 				case responseCode == http.StatusBadRequest:
 					reason = "Bad request."
@@ -700,12 +706,12 @@ func (client Client) GetPullRequest(projectKey, projectSlug, identifier string) 
 		}
 
 		var responseCode int
-		responseCode, data, err = consumeResponse(req)
+		responseCode, data, err = client.consumeResponse(req)
 		if err != nil {
 			return err
 		}
 		if responseCode != http.StatusOK {
-			var reason string = "unhandled reason"
+			reason := "unhandled reason"
 			switch {
 			case responseCode == http.StatusBadRequest:
 				reason = "Bad request."
@@ -750,7 +756,7 @@ func (client Client) ApprovePullRequest(projectKey, repositorySlug string, pullR
 
 		req.SetBasicAuth(client.userName, client.password)
 
-		responseCode, _, err := consumeResponse(req)
+		responseCode, _, err := client.consumeResponse(req)
 		if err != nil {
 			return err
 		}
@@ -793,7 +799,7 @@ func (client Client) MergePullRequest(projectKey, repositorySlug string, pullReq
 
 		req.SetBasicAuth(client.userName, client.password)
 
-		responseCode, _, err := consumeResponse(req)
+		responseCode, _, err := client.consumeResponse(req)
 		if err != nil {
 			return err
 		}
@@ -847,12 +853,12 @@ func (client Client) CreateComment(projectKey, repositorySlug, pullRequest, text
 	req.Header.Set("Content-type", "application/json")
 	req.SetBasicAuth(client.userName, client.password)
 
-	responseCode, data, err := consumeResponse(req)
+	responseCode, data, err := client.consumeResponse(req)
 	if err != nil {
 		return Comment{}, err
 	}
 	if responseCode != http.StatusCreated {
-		var reason string = "unknown reason"
+		reason := "unknown reason"
 		switch {
 		case responseCode == http.StatusBadRequest:
 			reason = "The comment was not created due to a validation error."
@@ -922,12 +928,12 @@ func (client Client) CreatePullRequest(projectKey, repositorySlug, title, descri
 	req.Header.Set("Content-type", "application/json")
 	req.SetBasicAuth(client.userName, client.password)
 
-	responseCode, data, err := consumeResponse(req)
+	responseCode, data, err := client.consumeResponse(req)
 	if err != nil {
 		return PullRequest{}, err
 	}
 	if responseCode != http.StatusCreated {
-		var reason string = "unknown reason"
+		reason := "unknown reason"
 		switch {
 		case responseCode == http.StatusBadRequest:
 			reason = "The pull-request was not created due to a validation error."
@@ -1002,13 +1008,13 @@ func (client Client) UpdatePullRequest(projectKey, repositorySlug, identifier st
 	req.Header.Set("Content-type", "application/json")
 	req.SetBasicAuth(client.userName, client.password)
 
-	responseCode, data, err := consumeResponse(req)
+	responseCode, data, err := client.consumeResponse(req)
 	if err != nil {
 		return PullRequest{}, err
 	}
 
 	if responseCode != http.StatusOK {
-		var reason string = "unknown reason"
+		reason := "unknown reason"
 		switch {
 		case responseCode == http.StatusBadRequest:
 			reason = "The pull-request was not updated due to a validation error."
@@ -1041,7 +1047,7 @@ func (client Client) DeleteBranch(projectKey, repositorySlug, branchName string)
 		req.Header.Set("Content-type", "application/json")
 		req.SetBasicAuth(client.userName, client.password)
 
-		responseCode, _, err := consumeResponse(req)
+		responseCode, _, err := client.consumeResponse(req)
 		if err != nil {
 			return err
 		}
@@ -1072,12 +1078,12 @@ func (client Client) GetRawFile(repositoryProjectKey, repositorySlug, filePath, 
 		req.SetBasicAuth(client.userName, client.password)
 
 		var responseCode int
-		responseCode, data, err = consumeResponse(req)
+		responseCode, data, err = client.consumeResponse(req)
 		if err != nil {
 			return err
 		}
 		if responseCode != http.StatusOK {
-			var reason string = "unhandled reason"
+			reason := "unhandled reason"
 			switch {
 			case responseCode == http.StatusNotFound:
 				reason = "Not found"
@@ -1109,13 +1115,13 @@ func (client Client) GetCommit(projectKey, repositorySlug, commitHash string) (C
 		}
 
 		var responseCode int
-		responseCode, data, err = consumeResponse(req)
+		responseCode, data, err = client.consumeResponse(req)
 		if err != nil {
 			return err
 		}
 
 		if responseCode != http.StatusOK {
-			var reason string = "unhandled reason"
+			reason := "unhandled reason"
 			switch {
 			case responseCode == http.StatusBadRequest:
 				reason = "Bad Request"
@@ -1155,13 +1161,13 @@ func (client Client) GetCommits(projectKey, repositorySlug, commitSinceHash stri
 		}
 
 		var responseCode int
-		responseCode, data, err = consumeResponse(req)
+		responseCode, data, err = client.consumeResponse(req)
 		if err != nil {
 			return err
 		}
 
 		if responseCode != http.StatusOK {
-			var reason string = "unhandled reason"
+			reason := "unhandled reason"
 			switch {
 			case responseCode == http.StatusBadRequest:
 				reason = "Bad Request"
@@ -1244,7 +1250,7 @@ func (client Client) DeclinePullRequest(projectKey, repositorySlug string, pullR
 
 		req.SetBasicAuth(client.userName, client.password)
 
-		responseCode, _, err := consumeResponse(req)
+		responseCode, _, err := client.consumeResponse(req)
 		if err != nil {
 			return err
 		}
@@ -1268,8 +1274,8 @@ func (client Client) DeclinePullRequest(projectKey, repositorySlug string, pullR
 	return retry.Try(work)
 }
 
-func consumeResponse(req *http.Request) (int, []byte, error) {
-	response, err := httpClient.Do(req)
+func (client Client) consumeResponse(req *http.Request) (int, []byte, error) {
+	response, err := client.httpClient.Do(req)
 	if err != nil {
 		return 0, nil, err
 	}
