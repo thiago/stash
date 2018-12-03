@@ -75,7 +75,8 @@ type (
 	}
 
 	Project struct {
-		Key string `json:"key"`
+		Key  string `json:"key"`
+		Name string `json:"name"`
 	}
 
 	Links struct {
