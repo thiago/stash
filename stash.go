@@ -40,6 +40,8 @@ type (
 		GetRawFile(projectKey, repositorySlug, branch, filePath string) ([]byte, error)
 		GetRepositories() (map[int]Repository, error)
 		GetRepository(projectKey, repositorySlug string) (Repository, error)
+		GetRepositoryPermissionUsers(projectKey, repositorySlug string) ([]Permission, error)
+		GetRepositoryPermissionGroups(projectKey, repositorySlug string) ([]Permission, error)
 		GetTags(projectKey, repositorySlug string) (map[string]Tag, error)
 		MergePullRequest(projectKey, repositorySlug string, pullRequestID, pullRequestVersion int) error
 		SetHTTPClient(httpClient *http.Client)
@@ -76,6 +78,35 @@ type (
 		Project Project `json:"project"`
 		ScmID   string  `json:"scmId"`
 		Links   Links   `json:"links"`
+	}
+
+	Permissions struct {
+		IsLastPage    bool         `json:"isLastPage"`
+		Size          int          `json:"size"`
+		Start         int          `json:"start"`
+		NextPageStart int          `json:"nextPageStart"`
+		Permission    []Permission `json:"values"`
+	}
+
+	Permission struct {
+		User       PermissionUser  `json:"user"`
+		Group      PermissionGroup `json:"group"`
+		Permission string          `json:"permission"`
+	}
+
+	PermissionUser struct {
+		Name         string           `json:"name"`
+		EmailAddress string           `json:"emailAddress"`
+		ID           int              `json:"id"`
+		DisplayName  string           `json:"displayName"`
+		Active       bool             `json:"active"`
+		Slug         string           `json:"slug"`
+		Type         string           `json:"type"`
+		Repository   []PermissionUser `json:"values"`
+	}
+
+	PermissionGroup struct {
+		Name string `json:"name"`
 	}
 
 	Project struct {
@@ -508,6 +539,110 @@ func (client Client) GetRepository(projectKey, repositorySlug string) (Repositor
 	}
 
 	return r, retry.Try(work)
+}
+
+// GetRepositoryPermissionUsers returns a slice of permissions
+func (client Client) GetRepositoryPermissionUsers(projectKey, repositorySlug string) ([]Permission, error) {
+	start := 0
+	var permissions []Permission
+	morePages := true
+	for morePages {
+		retry := retry.New(3, retry.DefaultBackoffFunc)
+		var data []byte
+		work := func() error {
+			req, err := http.NewRequest("GET", fmt.Sprintf("%s/rest/api/1.0/projects/%s/repos/%s/permission/users?start=%d&limit=%d", client.baseURL.String(), projectKey, repositorySlug, start, stashPageLimit), nil)
+			if err != nil {
+				return err
+			}
+			req.Header.Set("Accept", "application/json")
+			// use credentials if we have them.  If not, the repository must be public.
+			if client.userName != "" && client.password != "" {
+				req.SetBasicAuth(client.userName, client.password)
+			}
+
+			var responseCode int
+			responseCode, data, err = client.consumeResponse(req)
+			if err != nil {
+				return err
+			}
+			if responseCode != http.StatusOK {
+				reason := "unhandled reason"
+				switch {
+				case responseCode == http.StatusBadRequest:
+					reason = "Bad request."
+				}
+				return errorResponse{StatusCode: responseCode, Reason: reason}
+			}
+			return nil
+		}
+		if err := retry.Try(work); err != nil {
+			return nil, err
+		}
+
+		var p Permissions
+		err := json.Unmarshal(data, &p)
+		if err != nil {
+			return nil, err
+		}
+		for _, perm := range p.Permission {
+			permissions = append(permissions, perm)
+		}
+		morePages = !p.IsLastPage
+		start = p.NextPageStart
+	}
+	return permissions, nil
+}
+
+// GetRepositoryPermissionGroups returns a slice of permissions
+func (client Client) GetRepositoryPermissionGroups(projectKey, repositorySlug string) ([]Permission, error) {
+	start := 0
+	var permissions []Permission
+	morePages := true
+	for morePages {
+		retry := retry.New(3, retry.DefaultBackoffFunc)
+		var data []byte
+		work := func() error {
+			req, err := http.NewRequest("GET", fmt.Sprintf("%s/rest/api/1.0/projects/%s/repos/%s/permission/groups?start=%d&limit=%d", client.baseURL.String(), projectKey, repositorySlug, start, stashPageLimit), nil)
+			if err != nil {
+				return err
+			}
+			req.Header.Set("Accept", "application/json")
+			// use credentials if we have them.  If not, the repository must be public.
+			if client.userName != "" && client.password != "" {
+				req.SetBasicAuth(client.userName, client.password)
+			}
+
+			var responseCode int
+			responseCode, data, err = client.consumeResponse(req)
+			if err != nil {
+				return err
+			}
+			if responseCode != http.StatusOK {
+				reason := "unhandled reason"
+				switch {
+				case responseCode == http.StatusBadRequest:
+					reason = "Bad request."
+				}
+				return errorResponse{StatusCode: responseCode, Reason: reason}
+			}
+			return nil
+		}
+		if err := retry.Try(work); err != nil {
+			return nil, err
+		}
+
+		var p Permissions
+		err := json.Unmarshal(data, &p)
+		if err != nil {
+			return nil, err
+		}
+		for _, perm := range p.Permission {
+			permissions = append(permissions, perm)
+		}
+		morePages = !p.IsLastPage
+		start = p.NextPageStart
+	}
+	return permissions, nil
 }
 
 func (client Client) CreateBranchRestriction(projectKey, repositorySlug, branch, user string) (BranchRestriction, error) {
