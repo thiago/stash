@@ -550,7 +550,7 @@ func (client Client) GetRepositoryPermissionUsers(projectKey, repositorySlug str
 		retry := retry.New(3, retry.DefaultBackoffFunc)
 		var data []byte
 		work := func() error {
-			req, err := http.NewRequest("GET", fmt.Sprintf("%s/rest/api/1.0/projects/%s/repos/%s/permission/users?start=%d&limit=%d", client.baseURL.String(), projectKey, repositorySlug, start, stashPageLimit), nil)
+			req, err := http.NewRequest("GET", fmt.Sprintf("%s/rest/api/1.0/projects/%s/repos/%s/permissions/users?start=%d&limit=%d", client.baseURL.String(), projectKey, repositorySlug, start, stashPageLimit), nil)
 			if err != nil {
 				return err
 			}
@@ -602,7 +602,7 @@ func (client Client) GetRepositoryPermissionGroups(projectKey, repositorySlug st
 		retry := retry.New(3, retry.DefaultBackoffFunc)
 		var data []byte
 		work := func() error {
-			req, err := http.NewRequest("GET", fmt.Sprintf("%s/rest/api/1.0/projects/%s/repos/%s/permission/groups?start=%d&limit=%d", client.baseURL.String(), projectKey, repositorySlug, start, stashPageLimit), nil)
+			req, err := http.NewRequest("GET", fmt.Sprintf("%s/rest/api/1.0/projects/%s/repos/%s/permissions/groups?start=%d&limit=%d", client.baseURL.String(), projectKey, repositorySlug, start, stashPageLimit), nil)
 			if err != nil {
 				return err
 			}
